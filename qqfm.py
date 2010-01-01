@@ -1,18 +1,19 @@
 #!/usr/bin/python
 # coding: utf-8
-#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
-#                    Version 2, December 2004
+# Copyright 2014 Xinyu, He <legendmohe@foxmail.com>
 # 
-# Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 # 
-# Everyone is permitted to copy and distribute verbatim or modified
-# copies of this license document, and changing it is allowed as long
-# as the name is changed.
+#   http://www.apache.org/licenses/LICENSE-2.0
 # 
-#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
-#   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
-# 
-#  0. You just DO WHAT THE FUCK YOU WANT TO.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 
 import httplib
@@ -26,6 +27,7 @@ import threading
 import signal
 import urllib2
 import threading
+import time
 from datetime import datetime
 import tornado.ioloop
 import tornado.web
@@ -70,6 +72,7 @@ lock = threading.Lock()
 stop_playing = False
 
 def processMp3Address(src):
+    print src
     res = src[13:-2] #  remove JsonCallBack and quotes
     song = eval(res)['songs'][0]
     url = song["url"]
@@ -105,15 +108,20 @@ def music_worker():
                 print "player create: " + str(player.pid)
                 cur_music_url = song
                 player.wait()
+            time.sleep(2)
         except (KeyboardInterrupt, SystemExit):
             raise
         except Exception, e:
             import traceback
             traceback.print_exc(file=sys.stdout)
+            time.sleep(5)
 
 music_thread = threading.Thread(target = music_worker)
 music_thread.setDaemon(True)
 music_thread.start()
+if stop_playing is False:
+    stop_playing = True
+    lock.acquire()
 
 
 class NextHandler(tornado.web.RequestHandler):
@@ -142,7 +150,7 @@ class PauseHandler(tornado.web.RequestHandler):
             stop_playing = True
             lock.acquire()
             player.terminate()
-            self.write("pause")
+        self.write("pause")
 
 
 class MarkHandler(tornado.web.RequestHandler):
