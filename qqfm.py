@@ -29,9 +29,10 @@ def signal_handler(signum, frame):
 
 
 def try_exit():
-    global is_closing
+    global is_closing, player
     if is_closing:
         # clean up here
+        player.terminate()
         tornado.ioloop.IOLoop.instance().stop()
 
 
@@ -67,11 +68,10 @@ def processMp3Address(src):
     return url
 
 def processCMD(song):
-    cmd = ['mplayer',
+    cmd = [ 'mplayer',
             '-http-header-fields',
             'Cookie: pgv_pvid=9151698519; qqmusic_uin=12345678; qqmusic_key=12345678; qqmusic_fromtag=0;',
             song]
-    # print "cmd:", cmd
     return cmd
 
 def music_worker():
@@ -90,6 +90,7 @@ def music_worker():
             cmd = processCMD(song)
             with open(os.devnull, 'w') as tempf:
                 player = subprocess.Popen(cmd, stdout=tempf, stderr=tempf)
+                print "player create: " + str(player.pid)
                 cur_music_url = song
                 player.wait()
                 # pdb.set_trace()
@@ -117,7 +118,7 @@ class NextHandler(tornado.web.RequestHandler):
             stop_playing = False
             lock.release()
         else:
-            player.kill()
+            player.terminate()
         self.write(cur_channel['name'])
 
 
@@ -128,7 +129,7 @@ class PauseHandler(tornado.web.RequestHandler):
         if stop_playing is False:
             stop_playing = True
             lock.acquire()
-            player.kill()
+            player.terminate()
             self.write("pause")
 
 
