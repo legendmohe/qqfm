@@ -32,7 +32,6 @@ def try_exit():
     global is_closing, player
     if is_closing:
         # clean up here
-        player.terminate()
         tornado.ioloop.IOLoop.instance().stop()
 
 
