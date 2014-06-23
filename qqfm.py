@@ -67,7 +67,10 @@ def processMp3Address(src):
     return url
 
 def processCMD(song):
-    cmd = 'mplayer -http-header-fields \"Cookie: pgv_pvid=9151698519; qqmusic_uin=12345678; qqmusic_key=12345678; qqmusic_fromtag=0;\" ' + song
+    cmd = ['mplayer',
+            '-http-header-fields',
+            'Cookie: pgv_pvid=9151698519; qqmusic_uin=12345678; qqmusic_key=12345678; qqmusic_fromtag=0;',
+            song]
     # print "cmd:", cmd
     return cmd
 
@@ -91,6 +94,8 @@ def music_worker():
                 player.wait()
                 # pdb.set_trace()
         except Exception, e:
+            import traceback
+            traceback.print_exc(file=sys.stdout)
             print e
 
 music_thread = threading.Thread(target = music_worker)
@@ -102,6 +107,7 @@ class NextHandler(tornado.web.RequestHandler):
     def get(self):
         global stop_playing, lock, player, cur_channel, channels
 
+        print "next song."
         song_type = self.get_argument("type", None)
         if song_type is None:
             cur_channel = random.choice(channels)
@@ -118,6 +124,7 @@ class NextHandler(tornado.web.RequestHandler):
 class PauseHandler(tornado.web.RequestHandler):
     def get(self):
         global stop_playing, lock, player
+        print "pause."
         if stop_playing is False:
             stop_playing = True
             lock.acquire()
@@ -128,6 +135,7 @@ class PauseHandler(tornado.web.RequestHandler):
 class MarkHandler(tornado.web.RequestHandler):
     def get(self):
         global cur_music_url, cur_channel, log_file
+        print "mark current."
         now = time.time()
         log_content = "%s|%s|%s|1\n" % (now, cur_channel['name'], cur_music_url)
         log_file.write(log_content)
@@ -138,6 +146,7 @@ class MarkHandler(tornado.web.RequestHandler):
 class ListHandler(tornado.web.RequestHandler):
     def get(self):
         global channels
+        print "list music."
         response = "\n".join([item["name"] for item in channels])
         self.write(response)
 
@@ -149,6 +158,7 @@ application = tornado.web.Application([
     (r"/list", ListHandler),
 ])
 application.listen(8888)
+print "bind to 8888"
 signal.signal(signal.SIGINT, signal_handler)
 tornado.ioloop.PeriodicCallback(try_exit, 100).start()
 tornado.ioloop.IOLoop.instance().start()
