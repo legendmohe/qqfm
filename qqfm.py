@@ -1,7 +1,19 @@
 #!/usr/bin/python
 # coding: utf-8
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#                    Version 2, December 2004
+# 
+# Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>
+# 
+# Everyone is permitted to copy and distribute verbatim or modified
+# copies of this license document, and changing it is allowed as long
+# as the name is changed.
+# 
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+# 
+#  0. You just DO WHAT THE FUCK YOU WANT TO.
 
-import pdb
 
 import httplib
 import json
@@ -78,6 +90,7 @@ def music_worker():
     while True:
         if stop_playing:
             lock.acquire()
+            lock.release()
 
         channel_id = str(cur_channel['id'])
         print "current channel: ", cur_channel['name']
@@ -92,7 +105,6 @@ def music_worker():
                 print "player create: " + str(player.pid)
                 cur_music_url = song
                 player.wait()
-                # pdb.set_trace()
         except Exception, e:
             import traceback
             traceback.print_exc(file=sys.stdout)
