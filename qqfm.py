@@ -105,10 +105,11 @@ def music_worker():
                 print "player create: " + str(player.pid)
                 cur_music_url = song
                 player.wait()
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except Exception, e:
             import traceback
             traceback.print_exc(file=sys.stdout)
-            print e
 
 music_thread = threading.Thread(target = music_worker)
 music_thread.setDaemon(True)
