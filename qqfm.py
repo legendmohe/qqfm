@@ -116,12 +116,12 @@ def music_worker():
             traceback.print_exc(file=sys.stdout)
             time.sleep(5)
 
+if stop_playing is False:
+    stop_playing = True
+    lock.acquire() # acquire first, then run worker
 music_thread = threading.Thread(target = music_worker)
 music_thread.setDaemon(True)
 music_thread.start()
-if stop_playing is False:
-    stop_playing = True
-    lock.acquire()
 
 
 class NextHandler(tornado.web.RequestHandler):
