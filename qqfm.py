@@ -33,20 +33,6 @@ import tornado.ioloop
 import tornado.web
 
 
-# http://stackoverflow.com/questions/17101502/how-to-stop-the-tornado-web-server-with-ctrlc
-is_closing = False
-
-
-def signal_handler(signum, frame):
-    global is_closing
-    is_closing = True
-
-
-def try_exit():
-    global is_closing, player
-    if is_closing:
-        # clean up here
-        tornado.ioloop.IOLoop.instance().stop()
 
 
 import channels_list
@@ -104,7 +90,10 @@ def music_worker():
             song = processMp3Address(httpConnection.getresponse().read())
             cmd = processCMD(song)
             with open(os.devnull, 'w') as tempf:
-                player = subprocess.Popen(cmd, stdout=tempf, stderr=tempf)
+                player = subprocess.Popen(cmd,
+                                        stdout=tempf,
+                                        stderr=tempf,
+                                        )
                 print "player create: " + str(player.pid)
                 cur_music_url = song
                 player.wait()
@@ -138,7 +127,8 @@ class NextHandler(tornado.web.RequestHandler):
             stop_playing = False
             lock.release()
         else:
-            player.terminate()
+            player.kill()
+            # os.killpg(player.pid, signal.SIGTERM)
         self.write(cur_channel['name'])
 
 
@@ -149,7 +139,8 @@ class PauseHandler(tornado.web.RequestHandler):
         if stop_playing is False:
             stop_playing = True
             lock.acquire()
-            player.terminate()
+            player.kill()
+            # os.killpg(player.pid, signal.SIGTERM)
         self.write("pause")
 
 
@@ -171,6 +162,24 @@ class ListHandler(tornado.web.RequestHandler):
         response = "\n".join([item["name"] for item in channels])
         self.write(response)
 
+# http://stackoverflow.com/questions/17101502/how-to-stop-the-tornado-web-server-with-ctrlc
+is_closing = False
+def signal_handler(signum, frame):
+    global is_closing
+    is_closing = True
+
+
+def try_exit():
+    global is_closing, player, stop_playing
+    if is_closing:
+        # clean up here
+        print "pause."
+        if stop_playing is False:
+            stop_playing = True
+            lock.acquire()
+            player.kill()
+            # os.killpg(player.pid, signal.SIGTERM)
+        tornado.ioloop.IOLoop.instance().stop()
 
 application = tornado.web.Application([
     (r"/next", NextHandler),
