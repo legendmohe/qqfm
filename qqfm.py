@@ -33,8 +33,7 @@ import tornado.ioloop
 import tornado.web
 
 
-
-
+import vendor.CmdRunner
 import channels_list
 
 channels = channels_list.CHANNELS["type1"]
@@ -96,7 +95,7 @@ def music_worker():
                                         )
                 print "player create: " + str(player.pid)
                 cur_music_url = song
-                player.wait()
+                player.communicate()
             time.sleep(2)
         except (KeyboardInterrupt, SystemExit):
             raise
@@ -127,7 +126,7 @@ class NextHandler(tornado.web.RequestHandler):
             stop_playing = False
             lock.release()
         else:
-            player.kill()
+            player.terminate()
             # os.killpg(player.pid, signal.SIGTERM)
         self.write(cur_channel['name'])
 
@@ -139,7 +138,7 @@ class PauseHandler(tornado.web.RequestHandler):
         if stop_playing is False:
             stop_playing = True
             lock.acquire()
-            player.kill()
+            player.terminate()
             # os.killpg(player.pid, signal.SIGTERM)
         self.write("pause")
 
@@ -173,12 +172,13 @@ def try_exit():
     global is_closing, player, stop_playing
     if is_closing:
         # clean up here
-        print "pause."
-        if stop_playing is False:
-            stop_playing = True
-            lock.acquire()
-            player.kill()
+        print "exit qqfm."
+        # if stop_playing is False:
+        #     stop_playing = True
+        #     lock.acquire()
+        #     player.kill()
             # os.killpg(player.pid, signal.SIGTERM)
+        subprocess.call("./stop_all_qqfm_process.sh", shell=True)
         tornado.ioloop.IOLoop.instance().stop()
 
 application = tornado.web.Application([
