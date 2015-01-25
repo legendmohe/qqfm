@@ -45,6 +45,9 @@ cur_channel = random.choice(channels)
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
+WATCHDOG_TIMEOUT = "1:00"
+WATCHDOG_INTERVAL = 5
+
 def init_log_file():
     now = datetime.now()
     log_file_name = "music_%s_%s_%s.log" % (now.year, now.month, now.day)
@@ -72,6 +75,22 @@ def processCMD(song):
             'Cookie: pgv_pvid=9151698519; qqmusic_uin=12345678; qqmusic_key=12345678; qqmusic_fromtag=0;',
             song]
     return cmd
+
+def timeout_watchdog():
+    global WATCHDOG_INTERVAL, WATCHDOG_TIMEOUT
+    while True:
+        output = subprocess.check_output(
+                ["ps ax | grep \'[9]151698519\'|awk \'{print $1\",\"$4;}\'"]
+                , stderr=subprocess.STDOUT
+                , shell=True
+                )
+        for line in output.split():
+            item = line.split(',')
+            if item[1] > WATCHDOG_TIMEOUT:
+                print "timeout! ", item[0], item[1]
+                subprocess.call("./stop_all_qqfm_process.sh", shell=True)
+
+        time.sleep(WATCHDOG_INTERVAL)
 
 def music_worker():
     global player, channels, lock, stop_playing, cur_music_url, cur_channel
@@ -107,9 +126,12 @@ def music_worker():
 if stop_playing is False:
     stop_playing = True
     lock.acquire() # acquire first, then run worker
-music_thread = threading.Thread(target = music_worker)
+music_thread = threading.Thread(target=music_worker)
 music_thread.setDaemon(True)
 music_thread.start()
+watchdog_thread = threading.Thread(target=timeout_watchdog)
+watchdog_thread.setDaemon(True)
+watchdog_thread.start()
 
 
 class NextHandler(tornado.web.RequestHandler):
