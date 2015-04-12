@@ -133,6 +133,41 @@ watchdog_thread = threading.Thread(target=timeout_watchdog)
 watchdog_thread.setDaemon(True)
 watchdog_thread.start()
 
+def sift3(s1,s2, maxOffset):
+    s1L = len(s1)
+    s2L = len(s2)
+    if not s1:
+        return (not s2 and 0 or s2L)
+    if not s2:
+        return s1L
+    c1 = 0
+    c2 = 0
+    lcs = 0
+    while c1<s1L and c2<s2L:
+        if s1[c1] == s2[c2]:
+            lcs += 1
+        else:
+            for i in range(1,maxOffset):
+                if c1+i < s1L and s1[c1+i] == s2[c2]:
+                    c1 += i
+                    break
+                if c2+i < s2L and s1[c1] == s2[c2+i]:
+                    c2 += i
+                    break
+        c1 += 1
+        c2 += 1
+    return ((s1L+s2L)/2-lcs)
+
+def song_type_match(src):
+    global channels_groupby_type
+    if src is None or len(src) == 0:
+        return None
+    ret = []
+    for name in channels_groupby_type:
+        score = sift3(src, name, 3)
+        ret.append((name, score)) 
+    sorted(ret, key=lambda x: x[1])
+    return ret[0]
 
 class NextHandler(tornado.web.RequestHandler):
     def get(self):
@@ -140,10 +175,11 @@ class NextHandler(tornado.web.RequestHandler):
 
         print "next song."
         song_type = self.get_argument("type", None)
-        if song_type is None:
+        match_type = song_type_match(song_type)
+        if match_type is None:
             cur_channel = random.choice(channels)
         else:
-            cur_channel = channels_groupby_type[song_type]
+            cur_channel = channels_groupby_type[match_type]
         if stop_playing:
             stop_playing = False
             lock.release()
