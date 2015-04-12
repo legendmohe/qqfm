@@ -166,16 +166,18 @@ def song_type_match(src):
     for name in channels_groupby_type:
         score = sift3(src, name, 3)
         ret.append((name, score)) 
-    sorted(ret, key=lambda x: x[1])
-    return ret[0]
+    ret.sort(key=lambda x: x[1])
+    for value in ret:
+        print value[0], value[1]
+    return ret[0][0]
 
 class NextHandler(tornado.web.RequestHandler):
     def get(self):
         global stop_playing, lock, player, cur_channel, channels
 
-        print "next song."
         song_type = self.get_argument("type", None)
         match_type = song_type_match(song_type)
+        print "song_type:%s match:%s" % (song_type, match_type)
         if match_type is None:
             cur_channel = random.choice(channels)
         else:
