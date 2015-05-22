@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# coding: utf-8
+# encoding: utf-8
 # Copyright 2014 Xinyu, He <legendmohe@foxmail.com>
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,16 +25,22 @@ import time
 import random
 import threading
 import signal
+import urllib
 import urllib2
 import threading
 import time
 from datetime import datetime
+import json
+
 import tornado.ioloop
 import tornado.web
-
+import redis
 
 import vendor.CmdRunner
 import channels_list
+
+
+g_storage = redis.Redis(host="127.0.0.1", port=6379)
 
 channels = channels_list.CHANNELS["type1"]
 channels_groupby_type = {}
@@ -60,12 +66,28 @@ lock = threading.Lock()
 stop_playing = False
 
 def processMp3Address(src):
-    print src
+    global cur_channel, g_storage
+
+    src = src.decode("gb2312")
     res = src[13:-2] #  remove JsonCallBack and quotes
-    song = eval(res)['songs'][0]
+    song = json.loads(res)['songs'][0]
     url = song["url"]
     url = url[:url.index('/', 10) + 1]
     url = url + str(int(song["id"]) + 30000000) + ".mp3"
+    
+    song_data = song['data'].split("|")
+    song_name = song_data[1].strip()
+    song_singer = song_data[3].strip()
+    timestamp = int(time.time())
+    storage_str = u"%d|%s|%s|%s|%s" % (
+            timestamp,
+            cur_channel["name"],
+            song_name,
+            song_singer,
+            url
+            )
+    print "redis rpush: ", storage_str
+    g_storage.rpush("qqfm:play_history:list", storage_str)
     # print "url:", url
     return url
 
@@ -102,10 +124,15 @@ def music_worker():
         channel_id = str(cur_channel['id'])
         print "current channel: ", cur_channel['name']
         try:
-            httpConnection = httplib.HTTPConnection('radio.cloud.music.qq.com')
-            httpConnection.request('GET', '/fcgi-bin/qm_guessyoulike.fcg?start=-1&num=1&labelid=%s&jsonpCallback=MusicJsonCallback' % (channel_id, ))
-            
-            song = processMp3Address(httpConnection.getresponse().read())
+            params = {
+                    "start":-1,
+                    "num":1,
+                    "labelid":channel_id,
+                    "jsonpCallback":"MusicJsonCallback"
+                    }
+            rep = urllib.urlopen(
+                    "http://radio.cloud.music.qq.com/fcgi-bin/qm_guessyoulike.fcg?%s" % urllib.urlencode(params))
+            song = processMp3Address(rep.read())
             cmd = processCMD(song)
             with open(os.devnull, 'w') as tempf:
                 player = subprocess.Popen(cmd,
