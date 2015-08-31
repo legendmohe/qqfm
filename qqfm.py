@@ -42,11 +42,20 @@ import channels_list
 
 g_storage = redis.Redis(host="127.0.0.1", port=6379)
 
+def get_channel_from_pool():
+    global channels, channel_pool
+    if len(channel_pool) == 0:
+        channel_pool = channels[:]
+    channel = random.choice(channels)
+    channels.remove(channel)
+    return channel
+
 channels = channels_list.CHANNELS["type1"]
+channel_pool = channels[:]
 channels_groupby_type = {}
 for channel in channels:
     channels_groupby_type[channel["name"]] = channel
-cur_channel = random.choice(channels)
+cur_channel = get_channel_from_pool()
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -61,7 +70,7 @@ def init_log_file():
     log_file = open(log_file_name, "w")
     return log_file
 
-log_file = init_log_file()
+log_file = None
 lock = threading.Lock()
 stop_playing = False
 
@@ -76,7 +85,7 @@ def processMp3Address(src):
     url = url + str(int(song["id"]) + 30000000) + ".mp3"
     
     song_data = song['data'].split("|")
-    song_name = song_data[1].strip()
+    song_name = urllib.unquote(song_data[1].strip())
     song_singer = song_data[3].strip()
     timestamp = int(time.time())
     storage_str = u"%d|%s|%s|%s|%s" % (
@@ -206,14 +215,17 @@ class NextHandler(tornado.web.RequestHandler):
         match_type = song_type_match(song_type)
         print "song_type:%s match:%s" % (song_type, match_type)
         if match_type is None:
-            cur_channel = random.choice(channels)
+            cur_channel = get_channel_from_pool()
         else:
             cur_channel = channels_groupby_type[match_type]
         if stop_playing:
             stop_playing = False
             lock.release()
         else:
-            player.terminate()
+            try:
+                player.terminate()
+            except OSError, e:
+                print e
             # os.killpg(player.pid, signal.SIGTERM)
         self.write(cur_channel['name'])
 
@@ -225,7 +237,10 @@ class PauseHandler(tornado.web.RequestHandler):
         if stop_playing is False:
             stop_playing = True
             lock.acquire()
-            player.terminate()
+            try:
+                player.terminate()
+            except OSError, e:
+                print e
             # os.killpg(player.pid, signal.SIGTERM)
         self.write("pause")
 
@@ -234,6 +249,9 @@ class MarkHandler(tornado.web.RequestHandler):
     def get(self):
         global cur_music_url, cur_channel, log_file
         print "mark current."
+        if log_file is None:
+            log_file = init_log_file()
+
         now = time.time()
         log_content = "%s|%s|%s|1\n" % (now, cur_channel['name'], cur_music_url)
         log_file.write(log_content)
@@ -256,7 +274,7 @@ def signal_handler(signum, frame):
 
 
 def try_exit():
-    global is_closing, player, stop_playing
+    global is_closing, player, stop_playing, log_file
     if is_closing:
         # clean up here
         print "exit qqfm."
@@ -267,6 +285,8 @@ def try_exit():
             # os.killpg(player.pid, signal.SIGTERM)
         subprocess.call("./stop_all_qqfm_process.sh", shell=True)
         tornado.ioloop.IOLoop.instance().stop()
+        if log_file is not None:
+            log_file.close()
 
 application = tornado.web.Application([
     (r"/next", NextHandler),
