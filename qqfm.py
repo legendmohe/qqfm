@@ -46,8 +46,8 @@ def get_channel_from_pool():
     global channels, channel_pool
     if len(channel_pool) == 0:
         channel_pool = channels[:]
-    channel = random.choice(channels)
-    channels.remove(channel)
+    channel = random.choice(channel_pool)
+    channel_pool.remove(channel)
     return channel
 
 channels = channels_list.CHANNELS["type1"]
