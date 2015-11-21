@@ -97,8 +97,14 @@ def processMp3Address(src):
             )
     print "redis rpush: ", storage_str
     g_storage.rpush("qqfm:play_history:list", storage_str)
+    song = {
+            "url": url,
+            "channel":cur_channel["name"], 
+            "name": song_name,
+            "singer": song_singer
+            }
     # print "url:", url
-    return url
+    return song
 
 def processCMD(song):
     cmd = [ 'mplayer',
@@ -124,7 +130,7 @@ def timeout_watchdog():
         time.sleep(WATCHDOG_INTERVAL)
 
 def music_worker():
-    global player, channels, lock, stop_playing, cur_music_url, cur_channel
+    global player, channels, lock, stop_playing, g_cur_song, cur_channel
     while True:
         if stop_playing:
             lock.acquire()
@@ -142,14 +148,14 @@ def music_worker():
             rep = urllib.urlopen(
                     "http://radio.cloud.music.qq.com/fcgi-bin/qm_guessyoulike.fcg?%s" % urllib.urlencode(params))
             song = processMp3Address(rep.read())
-            cmd = processCMD(song)
+            cmd = processCMD(song["url"])
             with open(os.devnull, 'w') as tempf:
                 player = subprocess.Popen(cmd,
                                         stdout=tempf,
                                         stderr=tempf,
                                         )
                 print "player create: " + str(player.pid)
-                cur_music_url = song
+                g_cur_song = song
                 player.communicate()
             time.sleep(2)
         except (KeyboardInterrupt, SystemExit):
@@ -232,10 +238,11 @@ class NextHandler(tornado.web.RequestHandler):
 
 class PauseHandler(tornado.web.RequestHandler):
     def get(self):
-        global stop_playing, lock, player
+        global stop_playing, lock, player, g_cur_song
         print "pause."
         if stop_playing is False:
             stop_playing = True
+            g_cur_song = None
             lock.acquire()
             try:
                 player.terminate()
@@ -247,13 +254,17 @@ class PauseHandler(tornado.web.RequestHandler):
 
 class MarkHandler(tornado.web.RequestHandler):
     def get(self):
-        global cur_music_url, cur_channel, log_file
+        global g_cur_song, cur_channel, log_file
         print "mark current."
+
+        if g_cur_song is None:
+            self.write("None")
+            return
         if log_file is None:
             log_file = init_log_file()
 
         now = time.time()
-        log_content = "%s|%s|%s|1\n" % (now, cur_channel['name'], cur_music_url)
+        log_content = "%s|%s|%s|1\n" % (now, cur_channel['name'], g_cur_song["url"])
         log_file.write(log_content)
         log_file.flush()
         self.write(log_content)
@@ -265,6 +276,16 @@ class ListHandler(tornado.web.RequestHandler):
         print "list music."
         response = "\n".join([item["name"] for item in channels])
         self.write(response)
+
+class CurrentHandler(tornado.web.RequestHandler):
+    def get(self):
+        global channels, g_cur_song
+        print "current song."
+        if g_cur_song is None:
+            rep = "{}"
+        else:
+            rep = json.dumps(g_cur_song)
+        self.write(rep)
 
 # http://stackoverflow.com/questions/17101502/how-to-stop-the-tornado-web-server-with-ctrlc
 is_closing = False
@@ -293,6 +314,7 @@ application = tornado.web.Application([
     (r"/pause", PauseHandler),
     (r"/mark", MarkHandler),
     (r"/list", ListHandler),
+    (r"/current", CurrentHandler),
 ])
 application.listen(8888)
 print "bind to 8888"
