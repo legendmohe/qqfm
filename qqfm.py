@@ -29,6 +29,7 @@ import urllib
 import urllib2
 import threading
 import time
+import errno
 from datetime import datetime
 import json
 
@@ -64,8 +65,17 @@ WATCHDOG_TIMEOUT = "1:00"
 WATCHDOG_INTERVAL = 5
 
 def init_log_file():
+    base_path = "log"
+    try:
+        os.makedirs(base_path)
+    except OSError as exc: # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
+
     now = datetime.now()
-    log_file_name = "music_%s_%s_%s.log" % (now.year, now.month, now.day)
+    log_file_name = base_path + "/music_%s_%s_%s.log" % (now.year, now.month, now.day)
     print "init log file: ", log_file_name
     log_file = open(log_file_name, "w")
     return log_file
@@ -95,7 +105,7 @@ def processMp3Address(src):
             song_singer,
             url
             )
-    print "redis rpush: ", storage_str
+    print "redis rpush: %s" % str(storage_str)
     g_storage.rpush("qqfm:play_history:list", storage_str)
     song = {
             "url": url,
@@ -137,7 +147,7 @@ def music_worker():
             lock.release()
 
         channel_id = str(cur_channel['id'])
-        print "current channel: ", cur_channel['name']
+        print "current channel: %s " % str(cur_channel['name'])
         try:
             params = {
                     "start":-1,
